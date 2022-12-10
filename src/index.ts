@@ -19,14 +19,14 @@ const VALID_CODE_URL_RE = new RegExp('^https:\/\/secretsanta\.cadbury\.co\.uk\/c
 const MISSED_OUT_URL_RE = new RegExp('^https:\/\/secretsanta\.cadbury\.co\.uk\/missed-out.*$');
 
 // Validate code URL
-const isValidCodeUrl = async (urlToValidate: string) => {
+const isValidCodeUrl = (urlToValidate: string) => {
   return VALID_CODE_URL_RE.test(urlToValidate);
 }
 
 // Check URL is available
 const isCodeUrlAvailable = async (initialUrl: string) => {
   // Validate URL
-  if (!await isValidCodeUrl(initialUrl)) {
+  if (!isValidCodeUrl(initialUrl)) {
     throw new Error(`Invalid URL: ${initialUrl}`);
   }
 
@@ -64,7 +64,7 @@ const isCodeUrlAvailable = async (initialUrl: string) => {
 // Repeatedly check URL is available
 const isCodeUrlAvailableLoop = async (tag: string, initialUrl: string) => {
   // Validate URL
-  if (!await isValidCodeUrl(initialUrl)) {
+  if (!isValidCodeUrl(initialUrl)) {
     throw new Error(`Invalid URL: ${initialUrl}`);
   }
 
@@ -74,35 +74,45 @@ const isCodeUrlAvailableLoop = async (tag: string, initialUrl: string) => {
 
   // Repeatedly check URL
   while (true) {
-    // Get current URL status
-    const newStatus: boolean = await isCodeUrlAvailable(initialUrl);
-    const timeNow: number = new Date().getTime();
+    try {
+      // Get current URL status
+      const newStatus: boolean = await isCodeUrlAvailable(initialUrl);
+      const timeNow: number = new Date().getTime();
 
-    // Check for status change
-    if (newStatus !== previousStatus) {
-      if (newStatus) {
-        // URL is available
-        if (previousStatus === null) {
-          // First status change
-          console.log(`${tag} is available! ${initialUrl}`);
+      // Check for status change
+      if (newStatus !== previousStatus) {
+        let message: string;
+
+        if (newStatus) {
+          // URL is available
+          if (previousStatus === null) {
+            // First status change
+            message = `${tag} is available! ${initialUrl}`;
+          } else {
+            // Subsequent status changes
+            message = `${tag} is now available after ${timeNow - previousStatusChangeTime}ms! ${initialUrl}`;
+          }
         } else {
-          // Subsequent status changes
-          console.log(`${tag} is now available after ${timeNow - previousStatusChangeTime}ms! ${initialUrl}`);
+          // URL is unavailable
+          if (previousStatus === null) {
+            // First status change
+            message = `${tag} is unavailable.`;
+          } else {
+            // Subsequent status changes
+            message = `${tag} is no longer available. Was available for ${timeNow - previousStatusChangeTime}ms.`;
+          }
         }
-      } else {
-        // URL is unavailable
-        if (previousStatus === null) {
-          // First status change
-          console.log(`${tag} is unavailable.`);
-        } else {
-          // Subsequent status changes
-          console.log(`${tag} is no longer available. Was available for ${timeNow - previousStatusChangeTime}ms.`);
-        }
+
+        // Log messge to console
+        console.log(message);
+
+        // Update URL status
+        previousStatus = newStatus;
+        previousStatusChangeTime = timeNow;
       }
-
-      // Update URL status
-      previousStatus = newStatus;
-      previousStatusChangeTime = timeNow;
+    } catch (error) {
+      // Handle check error
+      console.error(error);
     }
   }
 }
@@ -124,12 +134,10 @@ const parser = parse(
 
     // Run check available loop for each URL
     data.forEach(async (urlData: UrlData) => {
-      try {
-        await isCodeUrlAvailableLoop(urlData.tag, urlData.url);
-      } catch (error) {
+      isCodeUrlAvailableLoop(urlData.tag, urlData.url).catch((error) => {
         // Handle errors thrown
         console.error(error);
-      }
+      });
     })
   });
 
